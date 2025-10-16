@@ -19,7 +19,8 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="patient_id", nullable = false)
     private Patient patient;
 
     @Column(nullable = false, precision = 10,scale = 2)
@@ -28,8 +29,11 @@ public class Payment {
     @Column(nullable = false)
     private LocalDateTime paymentDate;
 
+
     @PrePersist
     protected void onCreate() {
-        paymentDate = LocalDateTime.now();
+        if (paymentDate == null) {
+            paymentDate = LocalDateTime.now();
+        }
     }
 }
