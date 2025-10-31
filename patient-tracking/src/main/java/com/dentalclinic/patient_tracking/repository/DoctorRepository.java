@@ -16,6 +16,7 @@ public interface DoctorRepository extends JpaRepository<Doctor, Long> {
     // Telefon numarası ile bulma
     Optional<Doctor> findByPhoneNumber(String phoneNumber);
 
+
     Optional<Doctor> findByUserId(Long id);
     // İsim ve soyisim ile bulma
     List<Doctor> findByFirstNameAndLastName(String firstName, String lastName);

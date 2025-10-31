@@ -45,6 +45,11 @@ public class Patient {
     @Column(nullable = false , precision = 10, scale = 2)
     private BigDecimal generalDebt = BigDecimal.ZERO;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
+
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "active_clinic_id")
     private Clinic activeClinic;

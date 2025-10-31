@@ -21,7 +21,7 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
 
     Optional<Patient> findByUserId(Long id);
     // Opsiyonel: ID ile aktif hasta bulma (JWT kontrolü için)
-    Optional<Patient> findByIdAndIsActiveTrue(Long id);
+
 
     // Opsiyonel: isme göre kısmi arama
     List<Patient> findByFirstNameContainingIgnoreCase(String firstName);
@@ -29,6 +29,5 @@ public interface PatientRepository extends JpaRepository<Patient, Long> {
     // Opsiyonel: soyisme göre kısmi arama
     List<Patient> findByLastNameContainingIgnoreCase(String lastName);
 
-    // Opsiyonel: aktif hastaları listeleme
-    List<Patient> findAllByIsActiveTrue();
+
 }

@@ -30,6 +30,10 @@ public class Doctor {
     @Column(nullable = false, unique = true , length = 15)
     private String phoneNumber;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
+
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name="clinic_id")
