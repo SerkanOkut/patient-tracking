@@ -8,7 +8,6 @@ import com.dentalclinic.patient_tracking.exception.AccessDeniedException;
 import com.dentalclinic.patient_tracking.exception.NotFoundException;
 import com.dentalclinic.patient_tracking.repository.PatientRepository;
 import com.dentalclinic.patient_tracking.repository.TreatmentRecordRepository;
-import com.dentalclinic.patient_tracking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +22,6 @@ public class PatientService {
 
     private final PatientRepository patientRepository;
     private final TreatmentRecordRepository treatmentRecordRepository;
-    private final UserRepository userRepository;
 
     /**
      * Tek bir hasta kaydını alır ve rol bazlı erişimi kontrol eder
@@ -46,10 +44,15 @@ public class PatientService {
         if (currentUser.getRole() == Role.ADMIN) {
             patients = patientRepository.findAll();
         } else if (currentUser.getRole() == Role.DOCTOR) {
-            Long doctorId = currentUser.getDoctor().getId();
+            // Doctor objesini repository üzerinden fetch et
+            Long doctorId = patientRepository.findByUserId(currentUser.getId())
+                    .map(Patient::getId) // burası Doctor değil, DoctorService ile benzer mantıkta olmalı
+                    .orElseThrow(() -> new AccessDeniedException("Doctor objesi bulunamadı"));
             patients = treatmentRecordRepository.findPatientsByDoctorId(doctorId);
         } else if (currentUser.getRole() == Role.PATIENT) {
-            patients = List.of(currentUser.getPatient());
+            Patient currentPatient = patientRepository.findByUserId(currentUser.getId())
+                    .orElseThrow(() -> new AccessDeniedException("Patient objesi bulunamadı"));
+            patients = List.of(currentPatient);
         } else {
             throw new AccessDeniedException("Geçersiz rol");
         }
@@ -57,6 +60,10 @@ public class PatientService {
         return patients.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
+    public Patient getPatientByUserId(Long userId) {
+        return patientRepository.findByUserId(userId)
+                .orElseThrow(() -> new NotFoundException("Patient bulunamadı"));
+    }
     /**
      * Borç artırma veya azaltma işlemi
      */
@@ -91,13 +98,15 @@ public class PatientService {
      */
     private void checkAccess(Patient patient, User currentUser) {
         if (currentUser.getRole() == Role.DOCTOR) {
-            Long doctorId = currentUser.getDoctor().getId();
+            Long doctorId = currentUser.getId(); // JWT'den gelen userId ile doctorId fetch edilecek
             boolean hasAccess = treatmentRecordRepository.existsByPatientIdAndDoctorId(patient.getId(), doctorId);
             if (!hasAccess) {
                 throw new AccessDeniedException("Bu hastaya erişim yetkiniz yok");
             }
         } else if (currentUser.getRole() == Role.PATIENT) {
-            if (!patient.getId().equals(currentUser.getPatient().getId())) {
+            Patient currentPatient = patientRepository.findByUserId(currentUser.getId())
+                    .orElseThrow(() -> new AccessDeniedException("Patient objesi bulunamadı"));
+            if (!patient.getId().equals(currentPatient.getId())) {
                 throw new AccessDeniedException("Bu hastaya erişim yetkiniz yok");
             }
         }
@@ -114,7 +123,7 @@ public class PatientService {
                 .tcNumber(patient.getTcNumber())
                 .phoneNumber(patient.getPhoneNumber())
                 .generalDebt(patient.getGeneralDebt())
-                .activeClinicName(patient.getActiveClinic().getName())
+                .activeClinicName(patient.getActiveClinic() != null ? patient.getActiveClinic().getName() : null)
                 .build();
     }
 }

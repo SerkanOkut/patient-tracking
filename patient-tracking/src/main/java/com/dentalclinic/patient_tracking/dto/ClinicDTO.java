@@ -3,8 +3,9 @@ package com.dentalclinic.patient_tracking.dto;
 import jakarta.persistence.GeneratedValue;
 import lombok.*;
 
-@Getter
-@Setter
+import java.time.LocalDateTime;
+
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -15,4 +16,6 @@ public class ClinicDTO {
     private String address;
     private String phoneNumber;
     private boolean isActive;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

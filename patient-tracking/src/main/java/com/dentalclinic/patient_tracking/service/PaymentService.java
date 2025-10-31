@@ -1,6 +1,6 @@
 package com.dentalclinic.patient_tracking.service;
 
-
+import com.dentalclinic.patient_tracking.dto.PaymentDTO;
 import com.dentalclinic.patient_tracking.entity.Patient;
 import com.dentalclinic.patient_tracking.entity.Payment;
 import com.dentalclinic.patient_tracking.entity.User;
@@ -15,45 +15,77 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
+
     private final PaymentRepository paymentRepository;
     private final PatientRepository patientRepository;
-    private final PatientService patientService;
 
-
+    /**
+     * Ödeme kaydı ekleme (sadece admin)
+     */
     @Transactional
-    public void  recordPayment(Long patientId, BigDecimal amount, User currentUser) {
-
-        if(currentUser.getRole() != Role.ADMIN) {
+    public PaymentDTO recordPayment(Long patientId, BigDecimal amount, User currentUser) {
+        if (currentUser.getRole() != Role.ADMIN) {
             throw new AccessDeniedException("Ödeme kaydını yalnızca admin ekleyebilir");
         }
+
+        // Hasta entity'sini çekiyoruz
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new NotFoundException("Hasta bulunamadı"));
 
+        // Borç güncelleme
         BigDecimal newDebt = patient.getGeneralDebt().subtract(amount);
-        if(newDebt.compareTo(BigDecimal.ZERO)<0) newDebt = BigDecimal.ZERO;
+        if (newDebt.compareTo(BigDecimal.ZERO) < 0) newDebt = BigDecimal.ZERO;
+        patient.setGeneralDebt(newDebt);
+        patientRepository.save(patient);
 
-        BigDecimal debtChange = newDebt.subtract(patient.getGeneralDebt());
-        patientService.updateGeneralDebt(patientId,debtChange);
-
+        // Ödeme kaydı oluşturma
         Payment payment = Payment.builder()
                 .patient(patient)
                 .amount(amount)
                 .build();
         paymentRepository.save(payment);
+
+        return mapToDTO(payment);
     }
 
-    public List<Payment> getPaymentsForPatient(Long patientId, User currentUser) {
+    /**
+     * Belirli bir hastanın ödeme geçmişini alma
+     */
+    public List<PaymentDTO> getPaymentsForPatient(Long patientId, User currentUser) {
+        // Hasta entity'sini çekiyoruz
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new NotFoundException("Hasta bulunamadı"));
 
-        if(currentUser.getRole() == Role.PATIENT &&
-        !currentUser.getPatient().getId().equals(patientId)) {
+        // Rol bazlı erişim kontrolü
+        if (currentUser.getRole() == Role.PATIENT &&
+                !patientRepository.findByUserId(currentUser.getId())
+                        .map(Patient::getId)
+                        .orElse(-1L)
+                        .equals(patientId)) {
             throw new AccessDeniedException("Başka hastanın ödeme geçmişine erişemezsiniz");
         }
-        return paymentRepository.findByPatientIdOrderByPaymentDateDesc(patientId);
+
+        // Ödeme geçmişini çekip DTO'ya dönüştürme
+        return paymentRepository.findByPatientIdOrderByPaymentDateDesc(patientId)
+                .stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Entity → DTO dönüşümü
+     */
+    private PaymentDTO mapToDTO(Payment payment) {
+        return PaymentDTO.builder()
+                .id(payment.getId())
+                .patientId(payment.getPatient().getId())
+                .amount(payment.getAmount())
+                .paymentDate(payment.getPaymentDate())
+                .build();
     }
 }

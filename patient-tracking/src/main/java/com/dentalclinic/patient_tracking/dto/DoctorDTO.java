@@ -12,6 +12,8 @@ public class DoctorDTO {
     private String firstName;
     private String lastName;
     private String email;
+    private Long clinicId;
     private String phoneNumber;
     private String clinicName;
+    private  boolean isActive;
 }

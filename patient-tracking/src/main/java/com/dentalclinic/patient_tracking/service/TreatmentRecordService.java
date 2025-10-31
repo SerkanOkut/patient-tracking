@@ -1,6 +1,7 @@
 package com.dentalclinic.patient_tracking.service;
 
 import com.dentalclinic.patient_tracking.dto.TreatmentRecordDTO;
+import com.dentalclinic.patient_tracking.entity.Doctor;
 import com.dentalclinic.patient_tracking.entity.Patient;
 import com.dentalclinic.patient_tracking.entity.TreatmentRecord;
 import com.dentalclinic.patient_tracking.entity.User;
@@ -25,6 +26,7 @@ public class TreatmentRecordService {
     private final TreatmentRecordRepository treatmentRecordRepository;
     private final PatientRepository patientRepository;
     private final PatientService patientService;
+    private final DoctorService doctorService;
 
     /**
      * Yeni tedavi ekleme ve borç otomatik güncelleme
@@ -34,9 +36,11 @@ public class TreatmentRecordService {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new NotFoundException("Hasta bulunamadı"));
 
+        Doctor doctor = doctorService.getDoctorByUserId(currentUser.getId()); // JWT userId üzerinden doctor çek
+
         // Rol bazlı erişim kontrolü
         if (currentUser.getRole() == Role.DOCTOR) {
-            boolean hasAccess = treatmentRecordRepository.existsByPatientIdAndDoctorId(patientId, currentUser.getDoctor().getId());
+            boolean hasAccess = treatmentRecordRepository.existsByPatientIdAndDoctorId(patientId, doctor.getId());
             if (!hasAccess) {
                 throw new AccessDeniedException("Bu hastaya tedavi ekleme yetkiniz yok");
             }
@@ -46,7 +50,7 @@ public class TreatmentRecordService {
 
         TreatmentRecord treatment = TreatmentRecord.builder()
                 .patient(patient)
-                .doctor(currentUser.getDoctor())
+                .doctor(doctor)
                 .clinic(patient.getActiveClinic())
                 .treatmentName(dto.getTreatmentName())
                 .price(dto.getPrice())
@@ -70,10 +74,12 @@ public class TreatmentRecordService {
 
         // Rol bazlı kontrol
         if (currentUser.getRole() == Role.DOCTOR) {
-            boolean hasAccess = treatmentRecordRepository.existsByPatientIdAndDoctorId(patientId, currentUser.getDoctor().getId());
+            Doctor doctor = doctorService.getDoctorByUserId(currentUser.getId());
+            boolean hasAccess = treatmentRecordRepository.existsByPatientIdAndDoctorId(patientId, doctor.getId());
             if (!hasAccess) throw new AccessDeniedException("Bu hastaya erişim yetkiniz yok");
         } else if (currentUser.getRole() == Role.PATIENT) {
-            if (!currentUser.getPatient().getId().equals(patientId)) {
+            Patient currentPatient = patientService.getPatientByUserId(currentUser.getId());
+            if (!currentPatient.getId().equals(patientId)) {
                 throw new AccessDeniedException("Bu hastaya erişim yetkiniz yok");
             }
         }
@@ -107,19 +113,19 @@ public class TreatmentRecordService {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new NotFoundException("Hasta bulunamadı"));
 
-        // Rol kontrolü: Hasta veya Admin ödeme yapabilir, doktor yapamaz
+        // Rol kontrolü
         if (currentUser.getRole() == Role.DOCTOR) {
             throw new AccessDeniedException("Doktor ödeme gerçekleştiremez");
         } else if (currentUser.getRole() == Role.PATIENT) {
-            if (!currentUser.getPatient().getId().equals(patientId)) {
+            Patient currentPatient = patientService.getPatientByUserId(currentUser.getId());
+            if (!currentPatient.getId().equals(patientId)) {
                 throw new AccessDeniedException("Başka hastanın borcunu ödeyemezsiniz");
             }
         }
 
         BigDecimal newDebt = patient.getGeneralDebt().subtract(paymentAmount);
         if (newDebt.compareTo(BigDecimal.ZERO) < 0) newDebt = BigDecimal.ZERO;
-        patientService.updateGeneralDebt(patientId, newDebt.subtract(patient.getGeneralDebt())); // -amount
 
-        // Burada opsiyonel olarak Payment entity kaydı eklenebilir
+        patientService.updateGeneralDebt(patientId, newDebt.subtract(patient.getGeneralDebt()));
     }
 }
